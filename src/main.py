@@ -20,6 +20,107 @@ from src.convert_to_dict_mnbab import convert_state_dict
 
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
+import torch.nn.utils.prune as prune
+import copy
+from random import randrange
+
+def prune_model(model, conv_prune_amount=0.7, linear_prune_amount=0.7, type=None):
+    if type == None:
+        type = randrange(2)
+    # print(type)
+    type=1
+    if type == 0:
+        # global L1
+        parameters_to_prune = []
+        for module_name, module in model.named_modules():
+            if isinstance(module, torch.nn.Conv2d):
+                parameters_to_prune.append((module, "weight"))
+            elif isinstance(module, torch.nn.Linear):
+                parameters_to_prune.append((module, "weight"))
+        prune.global_unstructured(
+            parameters_to_prune,
+            pruning_method=prune.L1Unstructured,
+            amount=conv_prune_amount,
+        )
+    elif type == 1:
+        # local l1 unstructured
+        for module_name, module in model.named_modules():
+            if isinstance(module, torch.nn.Conv2d):
+                prune.l1_unstructured(module,
+                                        name="weight",
+                                        amount=conv_prune_amount)
+            elif isinstance(module, torch.nn.Linear):
+                prune.l1_unstructured(module,
+                                        name="weight",
+                                        amount=linear_prune_amount)
+    elif type == 2:
+        # local random unstructured
+        for module_name, module in model.named_modules():
+            if isinstance(module, torch.nn.Conv2d):
+                prune.random_unstructured(module,
+                                        name="weight",
+                                        amount=conv_prune_amount)
+            elif isinstance(module, torch.nn.Linear):
+                prune.random_unstructured(module,
+                                        name="weight",
+                                        amount=linear_prune_amount)
+    elif type == 3:
+        # local random structured
+        for module_name, module in model.named_modules():
+            if isinstance(module, torch.nn.Conv2d):
+                prune.random_structured(module,
+                                        name="weight",
+                                        amount=conv_prune_amount, dim=0)
+            elif isinstance(module, torch.nn.Linear):
+                prune.random_structured(module,
+                                        name="weight",
+                                        amount=linear_prune_amount, dim=0)
+    elif type == 4:
+        # local l2 structured
+        for module_name, module in model.named_modules():
+            if isinstance(module, torch.nn.Conv2d):
+                prune.ln_structured(module,
+                                        name="weight",
+                                        amount=conv_prune_amount, n=2, dim=0)
+            elif isinstance(module, torch.nn.Linear):
+                prune.ln_structured(module,
+                                        name="weight",
+                                        amount=linear_prune_amount, n=2, dim=0)
+    elif type == 5:
+        # local l1 structured
+        for module_name, module in model.named_modules():
+            if isinstance(module, torch.nn.Conv2d):
+                prune.ln_structured(module,
+                                        name="weight",
+                                        amount=conv_prune_amount, n=1, dim=0)
+            elif isinstance(module, torch.nn.Linear):
+                prune.ln_structured(module,
+                                        name="weight",
+                                        amount=linear_prune_amount, n=1, dim=0)
+                
+    return model
+
+def remove_parameters(model):
+    for module_name, module in model.named_modules():
+        if isinstance(module, torch.nn.Conv2d):
+            try:
+                prune.remove(module, "weight")
+            except:
+                pass
+            try:
+                prune.remove(module, "bias")
+            except:
+                pass
+        elif isinstance(module, torch.nn.Linear):
+            try:
+                prune.remove(module, "weight")
+            except:
+                pass
+            try:
+                prune.remove(module, "bias")
+            except:
+                pass
+    return model
 
 def main():
     args = parse_args()
@@ -80,6 +181,8 @@ def main():
     net_abs.to("cuda" if use_cuda else "cpu")
     if args.cert_reg:
         net_abs.set_detach_bounds(False)
+
+    pruned_model = prune_model(net_abs, 0.7, 0.7, 3)
 
     # Define Optimizer
     if args.opt == 'SGD':
