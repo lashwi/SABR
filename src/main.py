@@ -27,8 +27,7 @@ from random import randrange
 def prune_model(model, conv_prune_amount=0.7, linear_prune_amount=0.7, type=None):
     if type == None:
         type = randrange(2)
-    # print(type)
-    type=1
+    
     if type == 0:
         # global L1
         parameters_to_prune = []
